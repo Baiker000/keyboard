@@ -483,6 +483,11 @@ shift_is_pressed = False
 altgr_is_pressed = False
 ignore_next_right_alt = False
 shift_vks = set([0x10, 0xa0, 0xa1])
+
+keyboard_hook = None
+keyboard_callback = None
+WM_REHOOK = 0x4001
+
 def prepare_intercept(callback):
     """
     Registers a Windows low level keyboard hook. The provided callback will
@@ -493,6 +498,8 @@ def prepare_intercept(callback):
     No event is processed until the Windows messages are pumped (see
     start_intercept).
     """
+    # keyboard callback needs to be global to avoid garbage collection
+    global keyboard_hook, keyboard_callback
     _setup_name_tables()
     
     def process_key(event_type, vk, scan_code, is_extended):
@@ -552,17 +559,22 @@ def prepare_intercept(callback):
     handle =  GetModuleHandleW(None)
     thread_id = DWORD(0)
     keyboard_hook = SetWindowsHookEx(WH_KEYBOARD_LL, keyboard_callback, handle, thread_id)
-
     # Register to remove the hook when the interpreter exits. Unfortunately a
     # try/finally block doesn't seem to work here.
-    atexit.register(UnhookWindowsHookEx, keyboard_callback)
+    # UnhookWindowsHookEx requires HHOOK
+    atexit.register(UnhookWindowsHookEx, keyboard_hook)
 
 def listen(callback):
     prepare_intercept(callback)
-    msg = LPMSG()
-    while not GetMessage(msg, 0, 0, 0):
-        TranslateMessage(msg)
-        DispatchMessage(msg)
+
+    msg = MSG()
+    ctypes.memset(ctypes.byref(msg), 0, ctypes.sizeof(msg))
+
+    while not GetMessage(ctypes.byref(msg), 0, 0, 0):
+        TranslateMessage(ctypes.byref(msg))
+        DispatchMessage(ctypes.byref(msg))
+    global keyboard_hook
+    UnhookWindowsHookEx(keyboard_hook)
 
 def map_name(name):
     _setup_name_tables()

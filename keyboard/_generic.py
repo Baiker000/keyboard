@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
+import ctypes
+import sys
 from threading import Thread, Lock
+import time
 import traceback
 import functools
 
@@ -42,6 +45,38 @@ class GenericListener(object):
                 self.processing_thread = Thread(target=self.process)
                 self.processing_thread.daemon = True
                 self.processing_thread.start()
+        finally:
+            self.lock.release()
+
+    def rehook(self):
+        """
+        Reinstalls the keyboard hook by restarting the listener thread.
+        """
+        self.lock.acquire()
+        try:
+            if self.listening and hasattr(self, 'listening_thread') and self.listening_thread.is_alive():
+                if sys.platform == "win32":
+                    from ._winkeyboard import WM_REHOOK
+                    user32 = ctypes.windll.user32
+                    thread_id = getattr(self.listening_thread, '_thread_id', None) or self.listening_thread.ident
+                    if thread_id:
+                        user32.PostThreadMessageW(
+                            thread_id,
+                            WM_REHOOK,
+                            0,
+                            0
+                        )
+                self.listening_thread.join(timeout=0.1)
+                if self.listening_thread.is_alive():
+                    print("Still alive")
+                    time.sleep(0.3)
+                self.listening_thread = Thread(target=self.listen)
+                self.listening_thread.daemon = True
+                self.listening_thread._thread_id = None  # Will be set when thread starts
+                self.listening_thread.start()
+        except Exception as e:
+            print(f"Error during rehook: {e}")
+            raise
         finally:
             self.lock.release()
 

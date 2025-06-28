@@ -413,6 +413,9 @@ class _KeyboardListener(_GenericListener):
 
 _listener = _KeyboardListener()
 
+def rehook():
+    _listener.rehook()
+
 def key_to_scan_codes(key, error_if_missing=True):
     """
     Returns a list of scan codes associated with this key (name or scan code).
