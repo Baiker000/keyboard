@@ -487,6 +487,9 @@ shift_vks = set([0x10, 0xa0, 0xa1])
 keyboard_hook = None
 keyboard_callback = None
 WM_REHOOK = 0x4001
+WH_KEYBOARD_LL = c_int(13)
+handle =  GetModuleHandleW(None)
+thread_id = DWORD(0)
 
 def prepare_intercept(callback):
     """
@@ -554,10 +557,7 @@ def prepare_intercept(callback):
 
         return CallNextHookEx(None, nCode, wParam, lParam)
 
-    WH_KEYBOARD_LL = c_int(13)
     keyboard_callback = LowLevelKeyboardProc(low_level_keyboard_handler)
-    handle =  GetModuleHandleW(None)
-    thread_id = DWORD(0)
     keyboard_hook = SetWindowsHookEx(WH_KEYBOARD_LL, keyboard_callback, handle, thread_id)
     # Register to remove the hook when the interpreter exits. Unfortunately a
     # try/finally block doesn't seem to work here.
@@ -566,14 +566,28 @@ def prepare_intercept(callback):
 
 def listen(callback):
     prepare_intercept(callback)
-
     msg = MSG()
     ctypes.memset(ctypes.byref(msg), 0, ctypes.sizeof(msg))
-
-    while not GetMessage(ctypes.byref(msg), 0, 0, 0):
+    
+    while True:
+        ret = GetMessage(ctypes.byref(msg), 0, 0, 0)
+        if ret == 0:  # WM_QUIT
+            break
+        if ret == -1:  # Error
+            break
+            
+        if msg.message == WM_REHOOK:
+            # Reinstall hook without breaking loop
+            global keyboard_hook, keyboard_callback
+            # Unhook the previous hook
+            if keyboard_hook:
+                UnhookWindowsHookEx(keyboard_hook)
+            keyboard_hook = SetWindowsHookEx(WH_KEYBOARD_LL, keyboard_callback, handle, thread_id)
+            continue
+            
         TranslateMessage(ctypes.byref(msg))
         DispatchMessage(ctypes.byref(msg))
-    global keyboard_hook
+    
     UnhookWindowsHookEx(keyboard_hook)
 
 def map_name(name):

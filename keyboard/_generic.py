@@ -50,7 +50,7 @@ class GenericListener(object):
 
     def rehook(self):
         """
-        Reinstalls the keyboard hook by restarting the listener thread.
+        Requests the keyboard hook to be reinstalled by sending WM_REHOOK message.
         """
         self.lock.acquire()
         try:
@@ -66,14 +66,6 @@ class GenericListener(object):
                             0,
                             0
                         )
-                self.listening_thread.join(timeout=0.1)
-                if self.listening_thread.is_alive():
-                    print("Still alive")
-                    time.sleep(0.3)
-                self.listening_thread = Thread(target=self.listen)
-                self.listening_thread.daemon = True
-                self.listening_thread._thread_id = None  # Will be set when thread starts
-                self.listening_thread.start()
         except Exception as e:
             print(f"Error during rehook: {e}")
             raise
