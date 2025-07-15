@@ -193,7 +193,7 @@ input('Press enter to continue...')
 """
 from __future__ import print_function as _print_function
 
-version = '0.13.5.1'
+version = '0.13.5.2'
 
 import re as _re
 import itertools as _itertools
@@ -284,7 +284,7 @@ class _KeyboardListener(_GenericListener):
         ('free',       KEY_DOWN, 'modifier'): (False, False, 'pending'),
         ('pending',    KEY_UP,   'modifier'): (True,  True,  'free'),
         ('pending',    KEY_DOWN, 'modifier'): (False, True,  'allowed'),
-        ('suppressed', KEY_UP,   'modifier'): (False, False, 'free'),
+        ('suppressed', KEY_UP,   'modifier'): (True, True, 'free'),
         ('suppressed', KEY_DOWN, 'modifier'): (False, False, 'suppressed'),
         ('allowed',    KEY_UP,   'modifier'): (False, True,  'free'),
         ('allowed',    KEY_DOWN, 'modifier'): (False, True,  'allowed'),
