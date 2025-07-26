@@ -231,7 +231,10 @@ class _Event(_UninterruptibleEvent):
             if _UninterruptibleEvent.wait(self, 0.5):
                 break
 
+# Thread pool for asynchronous callback execution
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import platform as _platform
+import atexit
 if _platform.system() == 'Windows':
     from. import _winkeyboard as _os_keyboard
 elif _platform.system() == 'Linux':
@@ -321,6 +324,11 @@ class _KeyboardListener(_GenericListener):
         self.nonblocking_hotkeys = _collections.defaultdict(list)
         self.filtered_modifiers = _collections.Counter()
         self.is_replaying = False
+        
+        # Thread pool for async callback execution
+        self.thread_pool = ThreadPoolExecutor(max_workers=4)
+        self.callback_timeout = 0.01  # 10ms timeout
+        atexit.register(self.thread_pool.shutdown, wait=False)
 
         # Supporting hotkey suppression is harder than it looks. See
         # https://github.com/boppreh/keyboard/issues/22
@@ -383,7 +391,21 @@ class _KeyboardListener(_GenericListener):
                 modifiers_to_update = self.active_modifiers
                 if is_modifier(scan_code):
                     modifiers_to_update = modifiers_to_update | {scan_code}
-                callback_results = [callback(event) for callback in self.blocking_hotkeys[hotkey]]
+                # Execute callbacks asynchronously with timeout
+                futures = []
+                for callback in self.blocking_hotkeys[hotkey]:
+                    future = self.thread_pool.submit(callback, event)
+                    futures.append(future)
+                
+                callback_results = []
+                for future in futures:
+                    try:
+                        result = future.result(timeout=self.callback_timeout)
+                        callback_results.append(result)
+                    except TimeoutError:
+                        # Timeout - treat as True to avoid blocking
+                        callback_results.append(True)
+                
                 if callback_results:
                     accept = all(callback_results)
                     origin = 'hotkey'
@@ -826,7 +848,7 @@ def add_hotkey(hotkey, callback, args=(), suppress=False, timeout=1, trigger_on_
                 if event.event_type == KEY_UP:
                     remove()
                     set_index(0)
-                accept = event.event_type == event_type and callback() 
+                accept = event.event_type == event_type and callback()
                 if accept:
                     return catch_misses(event, force_fail=True)
                 else:
