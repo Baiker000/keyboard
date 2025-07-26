@@ -193,7 +193,7 @@ input('Press enter to continue...')
 """
 from __future__ import print_function as _print_function
 
-version = '0.13.5.2'
+version = '0.13.5.3'
 
 import re as _re
 import itertools as _itertools
